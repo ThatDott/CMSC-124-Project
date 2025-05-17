@@ -42,7 +42,10 @@ def get_type(token):
 # Handle 'BEG var': prompts the user and stores a number in a variable
 def handle_input(var_name: str) -> None:
     if not is_valid_variable(var_name):
-        print(f"SNOL> Unknown word [{var_name}]")
+        if not var_name[0].isalpha():
+            print("SNOL> Error! Invalid format, variable should start with a letter!")
+        else:
+            print("SNOL> Unknown command! Does not match any valid command of the language.")
         return
 
     print(f"SNOL> Please enter value for [{var_name}]:")
@@ -66,7 +69,7 @@ def handle_print(target: str) -> None:
         else:
             print(f"SNOL> Error! [{target}] is not defined!")
     else:
-        print(f"SNOL> Unknown word [{target}]")
+        print(f"SNOL> Unknown command! Does not match any valid command of the language.")
 
 # ----------------------------------------------------------
 # VARIABLE & ASSIGNMENT HANDLING - by John Andrei Manalo
@@ -90,7 +93,7 @@ def parse_command(command_str: str) -> dict:
     command_str = command_str.strip()
 
     if not command_str:
-        return {'type': 'error', 'message': 'Unknown command! Does not match any valid command of the language.'}
+        print("SNOL> Unknown command! Does not match any valid command of the language.")
     
     tokens = command_str.split()
 
@@ -98,34 +101,47 @@ def parse_command(command_str: str) -> dict:
     for token in tokens[1:]:
         for keyword in KEYWORDS:
             if keyword in token:
-                return {'type': 'error', 'message': f"Unknown command: {command_str}"}
-
+                print("SNOL> Unknown command! Does not match any valid command of the language.")
+                return None
+                
     if command_str == 'EXIT!':
         return {'type': 'exit'}
 
+    # Handle input: BEGvar or BEG var
     if command_str.startswith('BEG'):
         var = command_str[3:].strip()
-        if is_valid_variable(var):
+        if not var:
+            print("SNOL> Error! Invalid format, missing variable after BEG!")
+            return None
+        elif is_valid_variable(var):
             return {'type': 'input', 'name': var}
         elif is_literal(var):
-            return {'type': 'error', 'message': "Invalid target for BEG. Literals are not allowed."}
-        return {'type': 'error', 'message': f"Unknown word [{var}]"}
+            print("SNOL> Error! Invalid format, variable should start with a letter!")
+            return None
+        else:
+            print("SNOL> Unknown command! Does not match any valid command of the language.")
+            return None
 
+    # Handle print: PRINTvar or PRINT var
     if command_str.startswith('PRINT'):
         target = command_str[5:].strip()
         if target:
             return {'type': 'print', 'target': target}
-        return {'type': 'error', 'message': "Invalid PRINT syntax. Usage: PRINT var_or_literal"}
+        print("SNOL> Unknown command! Does not match any valid command of the language.")
+        return None
 
+    # Handle assignment: var=expr (no space) or spaced variants
     if '=' in command_str:
         parts = command_str.split('=', 1)
         var_name = parts[0].strip()
         expression = parts[1].strip()
 
         if not is_valid_variable(var_name):
-            return {'type': 'error', 'message': f"Invalid variable name [{var_name}]"}
-        if expression == '':
-            return {'type': 'error', 'message': f"Invalid assignment. No expression provided for [{var_name}]."}
+            print("SNOL> Error! Invalid number format!")
+            return None
+        if not expression:
+            print("SNOL> Unknown command! Does not match any valid command of the language.")
+            return None
         
         return {'type': 'assignment', 'var_name': var_name, 'expression': expression}
 
@@ -147,12 +163,14 @@ def evaluate_expr(expr: str):
 
         # Check if the first token is an operator
         if tokens and tokens[0] in '+-*/%':
-            raise SyntaxError(f"Unknown command: {expr}")
+            print(f"SNOL> Unknown command! Does not match any valid command of the language.")
+            return None, None
 
         for token in tokens:
             if is_valid_variable(token):
                 if token not in variables:
-                    raise NameError(f"Undefined variable [{token}]")
+                    print(f"SNOL> Error! [{token}] is not defined!")
+                    return None, None
                 val, val_type = variables[token]
                 expression.append(str(val))
                 types.add(val_type)
@@ -165,40 +183,31 @@ def evaluate_expr(expr: str):
             elif token in '+-*/%()':
                 expression.append(token)
             else:
-                raise SyntaxError(f"Unknown word [{token}]")
+                print(f"SNOL> Unknown command! Does not match any valid command of the language.")
+                return None, None
 
         # Rule: Variables should be of the same type - int and float is not allowed
         if 'int' in types and 'float' in types:
-            raise TypeError("Operands must be of the same type (int or float only)")
+            print("SNOL> Error! Operands must be of the same type in an arithmetic operation!")
+            return None, None
 
         # Rule: Modulo only works with type int
         if '%' in expression and 'float' in types:
-            raise TypeError("Modulo operator is only allowed with integers")
+            print("SNOL> Error! Modulo operator is only allowed with integers")
+            return None, None
 
         return expression, list(types)[0]
 
     # Tokenize expression
     tokens = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*|-?\d+\.\d+|-?\d+|[()+\-*/%]', expr)
 
-    try:
-        expression_tokens, final_type = check_expression(tokens)
-        eval_str = ' '.join(expression_tokens)
-        result = eval(eval_str)
+    expression_tokens, final_type = check_expression(tokens)
+    eval_str = ' '.join(expression_tokens)
+    result = eval(eval_str)
+    if result is None:
+        print(f"SNOL> Unknown command! Does not match any valid command of the language.")
 
-        return (int(result) if final_type == 'int' else float(result)), final_type
-
-    except ZeroDivisionError:
-        print("SNOL> Runtime error: Division by zero!")
-    except TypeError as e:
-        print(f"SNOL> Type error: {e}")
-    except NameError as e:
-        print(f"SNOL> Name error: {e}")
-    except SyntaxError as e:
-        print(f"SNOL> Syntax error: {e}")
-    except Exception as e:
-        print(f"SNOL> Error evaluating expression: {e}")
-
-    return None, None
+    return (int(result) if final_type == 'int' else float(result)), final_type
 
 # ----------------------------------------------------------
 # Main Interpreter Loop
@@ -207,7 +216,7 @@ def main():
     print("The SNOL environment is now active. Enter your commands:")
 
     while True:
-        command_str = input('Command: ')
+        command_str = input('\nCommand: ')
         command = parse_command(command_str) # Luigi
 
         try:
@@ -225,10 +234,8 @@ def main():
                     evaluate_expr(command['expr'])  # Justin
                 case 'error':
                     print(f"Error: {command['message']}")
-        except (NameError, TypeError, SyntaxError, ValueError) as e:
-            print(f"SNOL> Runtime error: {str(e)}")
         except Exception as e:
-            print(f"SNOL> Unexpected error: {str(e)}")
+            continue
 
 if __name__ == "__main__":
     main()
