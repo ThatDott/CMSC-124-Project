@@ -1,13 +1,20 @@
-# Standard library for regular expressions (regex)
-import re
+# ----------------------------------------------------------
+# SNOL Interpreter - CMSC 124 Final Project
+# Developers: Justin Veloso, Quennie Nebria, John Andrei Manalo, Luigi Guillen
+# This program interprets a simple number-only language (SNOL)
+# ----------------------------------------------------------
 
-# VARIABLE STORE
+import re  # Python Built-in module to handle regular expressions
+
+# Global state: holds all defined variables and their values
 variables = {}
 
-# List of keywords that are not allowed as variable names
+# Reserved words that cannot be used as variable names
 KEYWORDS = {'PRINT', 'BEG', 'EXIT!'}
 
-# Functions to check if a variable, integer-literal, float-literal, or literal is valid
+# ----------------------------------------------------------
+# Helper functions: the functions below check if a string is a valid token type
+# ----------------------------------------------------------
 def is_valid_variable(name):
     return re.fullmatch(r'[a-zA-Z][a-zA-Z0-9]*', name) and name not in KEYWORDS
 
@@ -29,67 +36,45 @@ def get_type(token):
         return variables[token][1]
     return None
 
-#----------------------------------------------------------------------------
-# Input/Output Handlers- Quennie Nebria
-
-# Handles BEG var: Reads value from user and stores in variable store
+# ----------------------------------------------------------
+# INPUT / OUTPUT HANDLERS - by Quennie Nebria
+# ----------------------------------------------------------
+# Handle 'BEG var': prompts the user and stores a number in a variable
 def handle_input(var_name: str) -> None:
-    # Validate variable name
     if not is_valid_variable(var_name):
         print(f"SNOL> Unknown word [{var_name}]")
         return
 
-    # Prompt the user
     print(f"SNOL> Please enter value for [{var_name}]:")
     user_input = input("Input: ").strip()
 
-    # Check if input is float or int and store appropriately
     if is_float_literal(user_input):
-        value = float(user_input)
-        variables[var_name] = (value, 'float')  # Store float
+        variables[var_name] = (float(user_input), 'float')
     elif is_integer_literal(user_input):
-        value = int(user_input)
-        variables[var_name] = (value, 'int')    # Store int
+        variables[var_name] = (int(user_input), 'int')
     else:
-        # Invalid input format
         print("SNOL> Error! Invalid number format!")
 
-# Handles PRINT x: Prints value of variable or literal
+# Handle 'PRINT x': prints the value of a literal or a variable
 def handle_print(target: str) -> None:
-    # If it's a literal, print directly
     if is_literal(target):
-        if is_integer_literal(target):
-            print(f"SNOL> [literal] = {int(target)}")
-        else:
-            print(f"SNOL> [literal] = {float(target)}")
-    
-    # If it's a valid variable, print stored value
+        print(f"SNOL> [literal] = {float(target) if is_float_literal(target) else int(target)}")
     elif is_valid_variable(target):
         if target in variables:
             value, _type = variables[target]
             print(f"SNOL> [{target}] = {value}")
         else:
             print(f"SNOL> Error! [{target}] is not defined!")
-    
-    # Unknown target
     else:
         print(f"SNOL> Unknown word [{target}]")
-        
-#----------------------------------------------------------------------------
-# VARIABLE & ASSIGNMENT STORAGE HANDLING - John Andrei Manalo
 
-# A function that retrieves the value and type of a variable from the variable store
-def get_variable_value(var_name: str, variables: dict):
-    if var_name in variables:
-        return variables[var_name]
-    return None, None
-
-# A function that handles assignment statements which supports assignment from literals or existing variables
+# ----------------------------------------------------------
+# VARIABLE & ASSIGNMENT HANDLING - by John Andrei Manalo
+# ----------------------------------------------------------
+# Handle 'var = expr', 'var = var', 'var = literal' and stores the result
 def handle_assignment(var_name: str, expression: str) -> None:
     try:
-        # Evaluate the right-hand side expression
         result, result_type = evaluate_expr(expression)
-        
         if result is not None:
             variables[var_name] = (result, result_type)
         else:
@@ -97,21 +82,21 @@ def handle_assignment(var_name: str, expression: str) -> None:
     except Exception as e:
         print(f"SNOL> Error during assignment: {str(e)}")
 
-
-#----------------------------------------------------------------------------
-# Main core function that parses the commands
+# ----------------------------------------------------------
+# COMMAND PARSER - by Luigi Guillen
+# ----------------------------------------------------------
+# Identifies what kind of command was typed
 def parse_command(command_str: str) -> dict:
     command_str = command_str.strip()
 
-## LIST OF IF-ELSE STATEMENTS FOR THE INDIVIDUAL COMMANDS OF SNOL
     if not command_str:
         return {'type': 'error', 'message': 'Unknown command! Does not match any valid command of the language.'}
     
     tokens = command_str.split()
-    
+
     if command_str == 'EXIT!':
         return {'type': 'exit'}
-    
+
     if command_str.startswith('BEG'):
         var = command_str[3:].strip()
         if is_valid_variable(var):
@@ -126,29 +111,30 @@ def parse_command(command_str: str) -> dict:
             return {'type': 'print', 'target': target}
         return {'type': 'error', 'message': "Invalid PRINT syntax. Usage: PRINT var_or_literal"}
 
-    # Handle assignment statement
     if '=' in command_str:
         parts = command_str.split('=', 1)
         var_name = parts[0].strip()
         expression = parts[1].strip()
-        
+
         if not is_valid_variable(var_name):
             return {'type': 'error', 'message': f"Invalid variable name [{var_name}]"}
         if expression == '':
             return {'type': 'error', 'message': f"Invalid assignment. No expression provided for [{var_name}]."}
         
         return {'type': 'assignment', 'var_name': var_name, 'expression': expression}
-       
+
     if re.fullmatch(r'[-+*/()%.\d\s]+', command_str):
         return {'type': 'expression', 'expr': command_str}
 
-    # All the otherwise, assume it's an arithmetic expression
+    # Default case: treat it as an expression
     return {'type': 'expression', 'expr': command_str}
 
-# EVALUATING EXPRESSIONS - Justin Dominic S. Veloso
-
+# ----------------------------------------------------------
+# Expression Evaluation - by Justin Dominic S. Veloso
+# ----------------------------------------------------------
+# Evaluates expression strings
 def evaluate_expr(expr: str):
-    # Replace all variables with their values and check type consistency
+    # Loop expression tokens for validation before evaluation
     def check_expression(tokens):
         expression = []
         types = set()
@@ -171,12 +157,12 @@ def evaluate_expr(expr: str):
             else:
                 raise SyntaxError(f"Unknown word [{token}]")
 
-        # Rule: All operands must be of the same type
+        # Rule: Variables should be of the same type - int and float is not allowed
         if 'int' in types and 'float' in types:
             raise TypeError("Operands must be of the same type (int or float only)")
 
-        # Rule: Modulo is only valid with integers
-        if '%' in expression and ('float' in types):
+        # Rule: Modulo only works with type int
+        if '%' in expression and 'float' in types:
             raise TypeError("Modulo operator is only allowed with integers")
 
         return expression, list(types)[0]
@@ -189,13 +175,7 @@ def evaluate_expr(expr: str):
         eval_str = ' '.join(expression_tokens)
         result = eval(eval_str)
 
-        # Coerce to correct type
-        if final_type == 'int':
-            result = int(result)
-        else:
-            result = float(result)
-
-        return result, final_type
+        return (int(result) if final_type == 'int' else float(result)), final_type
 
     except ZeroDivisionError:
         print("SNOL> Runtime error: Division by zero!")
@@ -210,37 +190,35 @@ def evaluate_expr(expr: str):
 
     return None, None
 
+# ----------------------------------------------------------
+# Main Interpreter Loop
+# ----------------------------------------------------------
 def main():
-    print("The SNOL environment is now active, you may proceed with giving your commands.")
-    
-    # Eternal while loop to act as a REPL/Interpreter until the user executes "EXIT!"
+    print("The SNOL environment is now active. Enter your commands:")
+
     while True:
         command_str = input('Command: ')
         command = parse_command(command_str)
-        
+
         try:
             match command['type']:
                 case 'exit':
                     print("Interpreter is now terminated...")
                     break
                 case 'input':
-                    handle_input(command['name']) #--> changed by Quennie
+                    handle_input(command['name'])  # Quennie
                 case 'print':
-                    handle_print(command['target']) #--> changed by Quennie
+                    handle_print(command['target'])  # Quennie
                 case 'assignment':
-                    handle_assignment(command['var_name'], command['expression']) # --> implemented by Andrei
+                    handle_assignment(command['var_name'], command['expression'])  # Andrei
                 case 'expression':
-                    result, result_type = evaluate_expr(command['expr']) # --> done by Justin
-                    if result is not None:
-                        print(f"SNOL> [result] = {result}")
+                    evaluate_expr(command['expr'])  # Justin
                 case 'error':
                     print(f"Error: {command['message']}")
-                case 'empty':
-                    continue
         except (NameError, TypeError, SyntaxError, ValueError) as e:
             print(f"SNOL> Runtime error: {str(e)}")
         except Exception as e:
             print(f"SNOL> Unexpected error: {str(e)}")
-            
+
 if __name__ == "__main__":
     main()
