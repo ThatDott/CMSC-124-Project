@@ -6,10 +6,10 @@
 
 import re  # Python Built-in module to handle regular expressions
 
-# Global state: holds all defined variables and their values
+# Global state: holds all variables and their values
 variables = {}
 
-# Reserved words that cannot be used as variable names
+# Words that cannot be used as variable names
 KEYWORDS = {'PRINT', 'BEG', 'EXIT!'}
 
 # ----------------------------------------------------------
@@ -94,6 +94,12 @@ def parse_command(command_str: str) -> dict:
     
     tokens = command_str.split()
 
+    # Check if any keyword appears but is not at the beginning
+    for token in tokens[1:]:
+        for keyword in KEYWORDS:
+            if keyword in token:
+                return {'type': 'error', 'message': f"Unknown command: {command_str}"}
+
     if command_str == 'EXIT!':
         return {'type': 'exit'}
 
@@ -138,6 +144,10 @@ def evaluate_expr(expr: str):
     def check_expression(tokens):
         expression = []
         types = set()
+
+        # Check if the first token is an operator
+        if tokens and tokens[0] in '+-*/%':
+            raise SyntaxError(f"Unknown command: {expr}")
 
         for token in tokens:
             if is_valid_variable(token):
@@ -198,7 +208,7 @@ def main():
 
     while True:
         command_str = input('Command: ')
-        command = parse_command(command_str)
+        command = parse_command(command_str) # Luigi
 
         try:
             match command['type']:
