@@ -87,30 +87,37 @@ def handle_assignment(var_name: str, expression: str) -> None:
 # ----------------------------------------------------------
 # Identifies what kind of command was typed
 def parse_command(command_str: str) -> dict:
-    command_str = command_str.strip()
+    command_str = command_str.strip().replace('\t', '')
 
     if not command_str:
         return {'type': 'error', 'message': 'Unknown command! Does not match any valid command of the language.'}
     
-    tokens = command_str.split()
-
+    # Reject if the first non-space character is an operator
+    if re.match(r'^[+\-*/%]', command_str):
+        return {'type': 'error', 'message': 'Unknown command! Does not match any valid command of the language.'}
+    
     if command_str == 'EXIT!':
         return {'type': 'exit'}
 
+    # Handle input: BEGvar or BEG var
     if command_str.startswith('BEG'):
         var = command_str[3:].strip()
+        if not var:
+            return {'type': 'error', 'message': "Missing variable name after BEG"}
+        if is_literal(var):
+            return {'type': 'error', 'message': "Invalid target for BEG. Literals are not allowed."}
         if is_valid_variable(var):
             return {'type': 'input', 'name': var}
-        elif is_literal(var):
-            return {'type': 'error', 'message': "Invalid target for BEG. Literals are not allowed."}
         return {'type': 'error', 'message': f"Unknown word [{var}]"}
 
+    # Handle print: PRINTvar or PRINT var
     if command_str.startswith('PRINT'):
         target = command_str[5:].strip()
-        if target:
-            return {'type': 'print', 'target': target}
-        return {'type': 'error', 'message': "Invalid PRINT syntax. Usage: PRINT var_or_literal"}
+        if not target:
+            return {'type': 'error', 'message': "Invalid PRINT syntax. Usage: PRINT var_or_literal"}
+        return {'type': 'print', 'target': target}
 
+    # Handle assignment: var=expr (no space) or spaced variants
     if '=' in command_str:
         parts = command_str.split('=', 1)
         var_name = parts[0].strip()
@@ -118,12 +125,18 @@ def parse_command(command_str: str) -> dict:
 
         if not is_valid_variable(var_name):
             return {'type': 'error', 'message': f"Invalid variable name [{var_name}]"}
-        if expression == '':
+
+        if not expression:
             return {'type': 'error', 'message': f"Invalid assignment. No expression provided for [{var_name}]."}
-        
+
         return {'type': 'assignment', 'var_name': var_name, 'expression': expression}
 
-    if re.fullmatch(r'[-+*/()%.\d\s]+', command_str):
+    # Check if all tokens in the expression are valid
+    tokens = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*|-?\d+\.\d+|-?\d+|[()+\-*/%]', command_str)
+    reconstructed = ''.join(tokens)
+    normalized = command_str.replace(' ', '')
+
+    if reconstructed == normalized:
         return {'type': 'expression', 'expr': command_str}
 
     # Default case: treat it as an expression
@@ -180,9 +193,17 @@ def evaluate_expr(expr: str):
     except ZeroDivisionError:
         print("SNOL> Runtime error: Division by zero!")
     except TypeError as e:
-        print(f"SNOL> Type error: {e}")
+        if "Operands must be of the same type" in str(e):
+            print("SNOL> Error! Operands must be of the same type in an arithmetic operation!")
+        elif "Modulo operator is only allowed with integers" in str(e):
+            print("SNOL> Error! Modulo operator is only allowed with integers!")
+        else:
+            print(f"SNOL> Error! {e}")
     except NameError as e:
-        print(f"SNOL> Name error: {e}")
+        # Extract variable name from the error message
+        match = re.search(r'\[(\w+)\]', str(e))
+        var_name = match.group(1) if match else 'unknown'
+        print(f"SNOL> Error! [{var_name}] is not defined!")
     except SyntaxError as e:
         print(f"SNOL> Syntax error: {e}")
     except Exception as e:
