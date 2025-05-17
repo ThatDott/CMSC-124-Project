@@ -7,7 +7,7 @@ variables = {}
 # List of keywords that are not allowed as variable names (see line 12)
 KEYWORDS = {'PRINT', 'BEG', 'EXIT!'}
 
-# Functions to check if a variable, integer-literal, float-literal, or literal is valid
+# Functions to check if a variable name is valid, if integer-literal, or if it's a float-literal
 def is_valid_variable(name):
     return re.fullmatch(r'[a-zA-Z][a-zA-Z0-9]*', name) and name not in KEYWORDS
 
